@@ -27,14 +27,14 @@ Our vision is to create meaningful human connections across time by:
 - Create capsules with a secret message, title, recipient, and tag
 - Set a custom unlock delay (in seconds) for when the capsule can be opened
 - Automated unique ID generation for each capsule
-- Messages are cryptographically sealed until unlock time
+- Messages are sealed until unlock time
 - Support for categorization via tags (love, future, memory, announcement, etc.)
 
 ### 2. **👀 Privacy-Aware Reading (READ)**
 
 - Browse all capsules with automatic message hiding for locked ones
-- Locked capsules show `[LOCKED 🔒]` instead of the actual message
-- Ready capsules show `[READY - Buka untuk membaca pesan!]` hint
+- Locked capsules show `[LOCKED - Not yet time to open]` instead of the actual message
+- Ready capsules show `[READY - Open to read the message!]` hint
 - Filter capsules by creator address
 - Real-time status checking (Locked → Ready → Opened)
 
@@ -44,7 +44,6 @@ Our vision is to create meaningful human connections across time by:
 - The secret message is revealed upon opening
 - Opening is recorded permanently on the blockchain
 - Once opened, the capsule's message becomes publicly visible
-- Event published on-chain for every capsule opening
 
 ### 4. **🗑️ Secure Deletion (DELETE)**
 
@@ -66,6 +65,15 @@ Our vision is to create meaningful human connections across time by:
 - Ownership enforcement for deletion
 - Time-based access control for message revealing
 - Immutable records of all capsule lifecycle events
+
+## Contract Details
+
+- **Network**: Stellar Testnet
+- **Contract ID**: `CDUH55HRZMQBHRF75KD3PEPDAOTAG3AD5EMX56ZDFBD3AMLYGLNBHDJQ`
+
+### Testnet Deployment Screenshot
+
+![TimeCapsule Contract on Stellar Testnet](image.png)
 
 ## Contract Functions
 
@@ -130,7 +138,7 @@ stellar contract build
 cargo test
 ```
 
-### Deploy to Stellar
+### Deploy to Stellar Testnet
 
 ```bash
 stellar contract deploy \
@@ -144,31 +152,53 @@ stellar contract deploy \
 ```bash
 # Create a time capsule (unlock in 1 hour = 3600 seconds)
 stellar contract invoke \
-  --id <CONTRACT_ID> \
+  --id CDUH55HRZMQBHRF75KD3PEPDAOTAG3AD5EMX56ZDFBD3AMLYGLNBHDJQ \
   --source <SECRET_KEY> \
   --network testnet \
   -- create_capsule \
   --creator <YOUR_ADDRESS> \
-  --title "Surat untuk 2030" \
-  --message "Hai masa depan! Semoga kamu sudah sukses!" \
-  --recipient "Diri sendiri" \
+  --title "Letter to 2030" \
+  --message "Hey future me! Hope you made it!" \
+  --recipient "My Future Self" \
   --tag "future" \
   --unlock_delay 3600
 
 # Get all capsules (messages hidden if still locked)
 stellar contract invoke \
-  --id <CONTRACT_ID> \
+  --id CDUH55HRZMQBHRF75KD3PEPDAOTAG3AD5EMX56ZDFBD3AMLYGLNBHDJQ \
   --network testnet \
   -- get_capsules
 
 # Open a capsule (only works if unlock time has passed)
 stellar contract invoke \
-  --id <CONTRACT_ID> \
+  --id CDUH55HRZMQBHRF75KD3PEPDAOTAG3AD5EMX56ZDFBD3AMLYGLNBHDJQ \
   --source <SECRET_KEY> \
   --network testnet \
   -- open_capsule \
   --opener <YOUR_ADDRESS> \
   --capsule_id 1
+
+# Check capsule status
+stellar contract invoke \
+  --id CDUH55HRZMQBHRF75KD3PEPDAOTAG3AD5EMX56ZDFBD3AMLYGLNBHDJQ \
+  --network testnet \
+  -- check_status \
+  --capsule_id 1
+
+# Delete a capsule (only creator, only if not opened)
+stellar contract invoke \
+  --id CDUH55HRZMQBHRF75KD3PEPDAOTAG3AD5EMX56ZDFBD3AMLYGLNBHDJQ \
+  --source <SECRET_KEY> \
+  --network testnet \
+  -- delete_capsule \
+  --creator <YOUR_ADDRESS> \
+  --capsule_id 1
+
+# Get platform statistics
+stellar contract invoke \
+  --id CDUH55HRZMQBHRF75KD3PEPDAOTAG3AD5EMX56ZDFBD3AMLYGLNBHDJQ \
+  --network testnet \
+  -- get_stats
 ```
 
 ## Future Scope
