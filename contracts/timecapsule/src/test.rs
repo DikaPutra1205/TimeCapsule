@@ -3,7 +3,7 @@
 use super::*;
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
-/// Helper: buat environment test dengan ledger timestamp tertentu
+/// Helper: create a test environment with a specific ledger timestamp
 fn setup_env(timestamp: u64) -> Env {
     let env = Env::default();
     env.mock_all_auths();
@@ -15,7 +15,7 @@ fn setup_env(timestamp: u64) -> Env {
     env
 }
 
-/// Helper: register contract
+/// Helper: register the contract
 fn create_contract(env: &Env) -> TimeCapsuleContractClient {
     TimeCapsuleContractClient::new(env, &env.register(TimeCapsuleContract, ()))
 }
@@ -30,11 +30,11 @@ fn test_create_capsule() {
 
     let id = client.create_capsule(
         &user,
-        &String::from_str(&env, "Surat untuk 2030"),
-        &String::from_str(&env, "Hai masa depan! Semoga kamu sukses!"),
-        &String::from_str(&env, "Diri sendiri"),
+        &String::from_str(&env, "Letter to 2030"),
+        &String::from_str(&env, "Hey future me! Hope you made it!"),
+        &String::from_str(&env, "My Future Self"),
         &String::from_str(&env, "future"),
-        &3600, // 1 jam dari sekarang
+        &3600, // 1 hour from now
     );
 
     assert_eq!(id, 1);
@@ -48,18 +48,18 @@ fn test_create_multiple_capsules() {
 
     let id1 = client.create_capsule(
         &user,
-        &String::from_str(&env, "Kapsul 1"),
-        &String::from_str(&env, "Pesan pertama"),
-        &String::from_str(&env, "Teman"),
+        &String::from_str(&env, "Capsule 1"),
+        &String::from_str(&env, "First message"),
+        &String::from_str(&env, "Friend"),
         &String::from_str(&env, "memory"),
         &3600,
     );
 
     let id2 = client.create_capsule(
         &user,
-        &String::from_str(&env, "Kapsul 2"),
-        &String::from_str(&env, "Pesan kedua"),
-        &String::from_str(&env, "Keluarga"),
+        &String::from_str(&env, "Capsule 2"),
+        &String::from_str(&env, "Second message"),
+        &String::from_str(&env, "Family"),
         &String::from_str(&env, "love"),
         &7200,
     );
@@ -69,7 +69,7 @@ fn test_create_multiple_capsules() {
 }
 
 #[test]
-#[should_panic(expected = "Unlock delay harus lebih dari 0 detik")]
+#[should_panic(expected = "Unlock delay must be greater than 0 seconds")]
 fn test_create_capsule_zero_delay() {
     let env = setup_env(1000);
     let client = create_contract(&env);
@@ -77,11 +77,11 @@ fn test_create_capsule_zero_delay() {
 
     client.create_capsule(
         &user,
-        &String::from_str(&env, "Gagal"),
-        &String::from_str(&env, "Pesan"),
-        &String::from_str(&env, "Siapapun"),
+        &String::from_str(&env, "Fail"),
+        &String::from_str(&env, "Message"),
+        &String::from_str(&env, "Anyone"),
         &String::from_str(&env, "test"),
-        &0, // Harus panic!
+        &0, // Should panic!
     );
 }
 
@@ -95,21 +95,21 @@ fn test_get_capsules_message_hidden_when_locked() {
 
     client.create_capsule(
         &user,
-        &String::from_str(&env, "Rahasia"),
-        &String::from_str(&env, "INI PESAN RAHASIA!"),
-        &String::from_str(&env, "Sahabat"),
+        &String::from_str(&env, "Secret"),
+        &String::from_str(&env, "THIS IS A SECRET MESSAGE!"),
+        &String::from_str(&env, "Best Friend"),
         &String::from_str(&env, "secret"),
-        &9999, // Masih lama
+        &9999, // Still a long time
     );
 
     let capsules = client.get_capsules();
     assert_eq!(capsules.len(), 1);
 
     let preview = capsules.get(0).unwrap();
-    // Pesan harus tersembunyi karena masih locked
+    // Message must be hidden because it's still locked
     assert_eq!(
         preview.message,
-        String::from_str(&env, "[LOCKED - Belum waktunya dibuka]")
+        String::from_str(&env, "[LOCKED - Not yet time to open]")
     );
     assert_eq!(preview.is_opened, false);
 }
@@ -122,17 +122,17 @@ fn test_get_capsule_by_id() {
 
     client.create_capsule(
         &user,
-        &String::from_str(&env, "Kapsul Spesial"),
-        &String::from_str(&env, "Isi rahasia"),
-        &String::from_str(&env, "Kamu"),
+        &String::from_str(&env, "Special Capsule"),
+        &String::from_str(&env, "Secret content"),
+        &String::from_str(&env, "You"),
         &String::from_str(&env, "love"),
         &3600,
     );
 
     let preview = client.get_capsule(&1);
     assert_eq!(preview.id, 1);
-    assert_eq!(preview.title, String::from_str(&env, "Kapsul Spesial"));
-    assert_eq!(preview.recipient, String::from_str(&env, "Kamu"));
+    assert_eq!(preview.title, String::from_str(&env, "Special Capsule"));
+    assert_eq!(preview.recipient, String::from_str(&env, "You"));
 }
 
 #[test]
@@ -142,30 +142,30 @@ fn test_get_my_capsules() {
     let user1 = Address::generate(&env);
     let user2 = Address::generate(&env);
 
-    // User1 buat 2 kapsul
+    // User1 creates 2 capsules
     client.create_capsule(
         &user1,
-        &String::from_str(&env, "Dari User1 - A"),
-        &String::from_str(&env, "Pesan A"),
-        &String::from_str(&env, "Teman"),
+        &String::from_str(&env, "From User1 - A"),
+        &String::from_str(&env, "Message A"),
+        &String::from_str(&env, "Friend"),
         &String::from_str(&env, "memory"),
         &3600,
     );
     client.create_capsule(
         &user1,
-        &String::from_str(&env, "Dari User1 - B"),
-        &String::from_str(&env, "Pesan B"),
-        &String::from_str(&env, "Keluarga"),
+        &String::from_str(&env, "From User1 - B"),
+        &String::from_str(&env, "Message B"),
+        &String::from_str(&env, "Family"),
         &String::from_str(&env, "love"),
         &7200,
     );
 
-    // User2 buat 1 kapsul
+    // User2 creates 1 capsule
     client.create_capsule(
         &user2,
-        &String::from_str(&env, "Dari User2"),
-        &String::from_str(&env, "Pesan C"),
-        &String::from_str(&env, "Diri sendiri"),
+        &String::from_str(&env, "From User2"),
+        &String::from_str(&env, "Message C"),
+        &String::from_str(&env, "Myself"),
         &String::from_str(&env, "future"),
         &1800,
     );
@@ -186,8 +186,8 @@ fn test_check_status_locked() {
     client.create_capsule(
         &user,
         &String::from_str(&env, "Locked"),
-        &String::from_str(&env, "Pesan"),
-        &String::from_str(&env, "Siapa"),
+        &String::from_str(&env, "Message"),
+        &String::from_str(&env, "Someone"),
         &String::from_str(&env, "test"),
         &5000,
     );
@@ -206,14 +206,14 @@ fn test_open_capsule_success() {
 
     client.create_capsule(
         &user,
-        &String::from_str(&env, "Kapsul Waktu"),
-        &String::from_str(&env, "Selamat! Kamu berhasil membuka kapsul ini!"),
-        &String::from_str(&env, "Masa Depan"),
+        &String::from_str(&env, "Time Capsule"),
+        &String::from_str(&env, "Congrats! You successfully opened this capsule!"),
+        &String::from_str(&env, "Future Me"),
         &String::from_str(&env, "future"),
-        &500, // unlock di timestamp 1500
+        &500, // Unlocks at timestamp 1500
     );
 
-    // Majukan waktu ke 2000 (sudah lewat deadline 1500)
+    // Advance time to 2000 (past the 1500 deadline)
     let mut ledger = env.ledger().get();
     ledger.timestamp = 2000;
     env.ledger().set(ledger);
@@ -221,16 +221,16 @@ fn test_open_capsule_success() {
     let message = client.open_capsule(&user, &1);
     assert_eq!(
         message,
-        String::from_str(&env, "Selamat! Kamu berhasil membuka kapsul ini!")
+        String::from_str(&env, "Congrats! You successfully opened this capsule!")
     );
 
-    // Verifikasi status sudah Opened
+    // Verify status is now Opened
     let preview = client.get_capsule(&1);
     assert_eq!(preview.is_opened, true);
 }
 
 #[test]
-#[should_panic(expected = "Kapsul masih terkunci")]
+#[should_panic(expected = "Capsule is still locked")]
 fn test_open_capsule_too_early() {
     let env = setup_env(1000);
     let client = create_contract(&env);
@@ -238,19 +238,19 @@ fn test_open_capsule_too_early() {
 
     client.create_capsule(
         &user,
-        &String::from_str(&env, "Jangan Dibuka"),
-        &String::from_str(&env, "Belum waktunya!"),
-        &String::from_str(&env, "Siapapun"),
+        &String::from_str(&env, "Do Not Open"),
+        &String::from_str(&env, "Not yet!"),
+        &String::from_str(&env, "Anyone"),
         &String::from_str(&env, "test"),
-        &9999, // Unlock jauh di masa depan
+        &9999, // Unlock far in the future
     );
 
-    // Coba buka sekarang — harus panic!
+    // Try to open now — should panic!
     client.open_capsule(&user, &1);
 }
 
 #[test]
-#[should_panic(expected = "Kapsul ini sudah pernah dibuka")]
+#[should_panic(expected = "This capsule has already been opened")]
 fn test_open_capsule_already_opened() {
     let env = setup_env(1000);
     let client = create_contract(&env);
@@ -258,22 +258,22 @@ fn test_open_capsule_already_opened() {
 
     client.create_capsule(
         &user,
-        &String::from_str(&env, "Sekali Buka"),
-        &String::from_str(&env, "Pesan sekali baca"),
-        &String::from_str(&env, "Pembaca"),
+        &String::from_str(&env, "One Time Open"),
+        &String::from_str(&env, "Read once only"),
+        &String::from_str(&env, "Reader"),
         &String::from_str(&env, "test"),
         &100,
     );
 
-    // Majukan waktu
+    // Advance time
     let mut ledger = env.ledger().get();
     ledger.timestamp = 2000;
     env.ledger().set(ledger);
 
-    // Buka pertama — sukses
+    // First open — success
     client.open_capsule(&user, &1);
 
-    // Buka kedua — harus panic!
+    // Second open — should panic!
     client.open_capsule(&user, &1);
 }
 
@@ -287,23 +287,23 @@ fn test_delete_capsule_success() {
 
     client.create_capsule(
         &user,
-        &String::from_str(&env, "Akan Dihapus"),
-        &String::from_str(&env, "Pesan ini akan hilang"),
+        &String::from_str(&env, "To Be Deleted"),
+        &String::from_str(&env, "This message will disappear"),
         &String::from_str(&env, "Nobody"),
         &String::from_str(&env, "temp"),
         &3600,
     );
 
     let result = client.delete_capsule(&user, &1);
-    assert_eq!(result, String::from_str(&env, "Kapsul berhasil dihapus"));
+    assert_eq!(result, String::from_str(&env, "Capsule deleted successfully"));
 
-    // Verifikasi sudah terhapus
+    // Verify it was deleted
     let capsules = client.get_capsules();
     assert_eq!(capsules.len(), 0);
 }
 
 #[test]
-#[should_panic(expected = "Hanya pembuat yang bisa menghapus")]
+#[should_panic(expected = "Only the creator can delete")]
 fn test_delete_capsule_not_owner() {
     let env = setup_env(1000);
     let client = create_contract(&env);
@@ -312,19 +312,19 @@ fn test_delete_capsule_not_owner() {
 
     client.create_capsule(
         &owner,
-        &String::from_str(&env, "Milik Owner"),
-        &String::from_str(&env, "Pesan owner"),
+        &String::from_str(&env, "Owner's Capsule"),
+        &String::from_str(&env, "Owner's message"),
         &String::from_str(&env, "Owner"),
         &String::from_str(&env, "private"),
         &3600,
     );
 
-    // Stranger coba hapus — harus panic!
+    // Stranger tries to delete — should panic!
     client.delete_capsule(&stranger, &1);
 }
 
 #[test]
-#[should_panic(expected = "Tidak bisa menghapus kapsul yang sudah dibuka")]
+#[should_panic(expected = "Cannot delete a capsule that has already been opened")]
 fn test_delete_opened_capsule() {
     let env = setup_env(1000);
     let client = create_contract(&env);
@@ -332,20 +332,20 @@ fn test_delete_opened_capsule() {
 
     client.create_capsule(
         &user,
-        &String::from_str(&env, "Sudah Dibuka"),
-        &String::from_str(&env, "Pesan"),
+        &String::from_str(&env, "Already Opened"),
+        &String::from_str(&env, "Message"),
         &String::from_str(&env, "Reader"),
         &String::from_str(&env, "test"),
         &100,
     );
 
-    // Majukan waktu & buka
+    // Advance time & open
     let mut ledger = env.ledger().get();
     ledger.timestamp = 2000;
     env.ledger().set(ledger);
     client.open_capsule(&user, &1);
 
-    // Coba hapus yang sudah dibuka — harus panic!
+    // Try to delete an opened capsule — should panic!
     client.delete_capsule(&user, &1);
 }
 
@@ -357,43 +357,43 @@ fn test_get_stats() {
     let client = create_contract(&env);
     let user = Address::generate(&env);
 
-    // Buat 3 kapsul dengan waktu unlock berbeda
+    // Create 3 capsules with different unlock times
     client.create_capsule(
         &user,
-        &String::from_str(&env, "Cepat"),
-        &String::from_str(&env, "Pesan cepat"),
+        &String::from_str(&env, "Quick"),
+        &String::from_str(&env, "Quick message"),
         &String::from_str(&env, "A"),
         &String::from_str(&env, "test"),
-        &100, // Unlock di 1100
+        &100, // Unlocks at 1100
     );
     client.create_capsule(
         &user,
-        &String::from_str(&env, "Sedang"),
-        &String::from_str(&env, "Pesan sedang"),
+        &String::from_str(&env, "Medium"),
+        &String::from_str(&env, "Medium message"),
         &String::from_str(&env, "B"),
         &String::from_str(&env, "test"),
-        &5000, // Unlock di 6000
+        &5000, // Unlocks at 6000
     );
     client.create_capsule(
         &user,
-        &String::from_str(&env, "Lama"),
-        &String::from_str(&env, "Pesan lama"),
+        &String::from_str(&env, "Long"),
+        &String::from_str(&env, "Long message"),
         &String::from_str(&env, "C"),
         &String::from_str(&env, "test"),
-        &99999, // Unlock jauh
+        &99999, // Unlocks far in the future
     );
 
-    // Majukan waktu ke 1500 (kapsul pertama sudah ready)
+    // Advance time to 1500 (first capsule is now ready)
     let mut ledger = env.ledger().get();
     ledger.timestamp = 1500;
     env.ledger().set(ledger);
 
-    // Buka kapsul pertama
+    // Open the first capsule
     client.open_capsule(&user, &1);
 
     let stats = client.get_stats();
     assert_eq!(stats.total_capsules, 3);
     assert_eq!(stats.total_opened, 1);
-    assert_eq!(stats.total_locked, 2);  // kapsul 2 & 3 masih locked
-    assert_eq!(stats.total_ready, 0);   // tidak ada yang ready (1 sudah dibuka)
+    assert_eq!(stats.total_locked, 2);  // Capsules 2 & 3 still locked
+    assert_eq!(stats.total_ready, 0);   // None ready (1 was opened already)
 }

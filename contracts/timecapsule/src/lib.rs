@@ -1,35 +1,35 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Vec};
 
 // ============================================================================
 // ⏳ TIMECAPSULE — Digital Time Capsule on Stellar Blockchain
 // ============================================================================
-// Platform kapsul waktu digital terdesentralisasi. Pengguna bisa menyimpan
-// pesan rahasia yang TERKUNCI WAKTU — pesan baru bisa dibaca setelah tanggal
-// tertentu. Cocok untuk: surat untuk masa depan, pengumuman terjadwal,
-// hadiah kejutan, atau kenangan yang ingin dibuka nanti.
+// A decentralized time capsule platform. Users can store secret messages that
+// are TIME-LOCKED — messages can only be read after a specific date and time.
+// Perfect for: letters to your future self, scheduled announcements,
+// surprise gifts, or memories you want to open later.
 //
-// Fitur utama:
-// - Create: Buat kapsul dengan pesan tersembunyi + tanggal buka
-// - Read:   Lihat daftar kapsul (pesan tersembunyi jika belum waktunya)
-// - Update: Buka kapsul yang sudah melewati waktu unlock
-// - Delete: Hapus kapsul milik sendiri (hanya jika belum dibuka)
+// Core Features (CRUD):
+// - Create: Store a capsule with a hidden message + unlock date
+// - Read:   View capsule list (messages hidden until unlock time)
+// - Update: Open a capsule that has passed its unlock time
+// - Delete: Remove your own capsule (only if it hasn't been opened)
 // ============================================================================
 
 // ========================== DATA STRUCTURES ==================================
 
-/// Kunci penyimpanan kontrak
+/// Contract storage keys
 #[contracttype]
 pub enum DataKey {
-    Capsules,       // Vec<TimeCapsule> — semua kapsul
-    CapsuleCount,   // u64 — counter ID
-    TotalOpened,    // u64 — total kapsul yang sudah dibuka
+    Capsules,       // Vec<TimeCapsule> — all capsules
+    CapsuleCount,   // u64 — ID counter
+    TotalOpened,    // u64 — total capsules that have been opened
 }
 
-/// Status sebuah kapsul waktu
-/// 0 = Locked (terkunci, belum waktunya)
-/// 1 = Ready (sudah waktunya, belum dibuka)
-/// 2 = Opened (sudah dibuka)
+/// Status of a time capsule
+/// Locked = not yet time to open
+/// Ready  = unlock time has passed, waiting to be opened
+/// Opened = has been opened, message revealed
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum CapsuleStatus {
@@ -38,23 +38,23 @@ pub enum CapsuleStatus {
     Opened,
 }
 
-/// Struktur data utama — sebuah Time Capsule
+/// Main data structure — a Time Capsule
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct TimeCapsule {
-    pub id: u64,              // ID unik kapsul
-    pub creator: Address,     // Alamat pembuat
-    pub title: String,        // Judul kapsul
-    pub message: String,      // Pesan rahasia (tersembunyi jika locked)
-    pub recipient: String,    // Untuk siapa kapsul ini ditujukan
-    pub tag: String,          // Kategori (love, future-self, announcement, dll)
-    pub created_at: u64,      // Waktu pembuatan (unix timestamp)
-    pub unlock_at: u64,       // Waktu kapsul bisa dibuka
-    pub is_opened: bool,      // Apakah sudah dibuka
-    pub opened_at: u64,       // Waktu dibuka (0 jika belum)
+    pub id: u64,              // Unique capsule ID
+    pub creator: Address,     // Creator's address
+    pub title: String,        // Capsule title
+    pub message: String,      // Secret message (hidden when locked)
+    pub recipient: String,    // Who this capsule is dedicated to
+    pub tag: String,          // Category (love, future-self, announcement, etc.)
+    pub created_at: u64,      // Creation timestamp (unix)
+    pub unlock_at: u64,       // When the capsule can be opened
+    pub is_opened: bool,      // Whether it has been opened
+    pub opened_at: u64,       // When it was opened (0 if not yet)
 }
 
-/// Versi kapsul yang aman — pesan disembunyikan jika masih terkunci
+/// Safe preview version — message is hidden if still locked
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct CapsulePreview {
@@ -68,10 +68,10 @@ pub struct CapsulePreview {
     pub is_opened: bool,
     pub opened_at: u64,
     pub status: CapsuleStatus,
-    pub message: String,      // "[LOCKED 🔒]" jika belum waktunya
+    pub message: String,      // Shows "[LOCKED]" if not yet time
 }
 
-/// Statistik platform
+/// Platform-wide statistics
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct Stats {
@@ -91,18 +91,18 @@ impl TimeCapsuleContract {
 
     // ====================== CREATE ===========================================
 
-    /// Membuat kapsul waktu baru.
+    /// Create a new time capsule.
     ///
     /// # Arguments
-    /// - `creator`       — Alamat pembuat kapsul (harus authorize)
-    /// - `title`         — Judul kapsul (misal: "Surat untuk Diriku 2030")
-    /// - `message`       — Pesan rahasia yang akan disembunyikan
-    /// - `recipient`     — Untuk siapa (misal: "Diri sendiri", "Sahabatku", dll)
-    /// - `tag`           — Kategori (misal: "love", "future", "memory")
-    /// - `unlock_delay`  — Berapa detik dari sekarang sampai bisa dibuka
+    /// - `creator`       — Creator's address (must authorize)
+    /// - `title`         — Capsule title (e.g., "Letter to Myself in 2030")
+    /// - `message`       — The secret message to be hidden
+    /// - `recipient`     — Who it's for (e.g., "My Future Self", "Best Friend")
+    /// - `tag`           — Category (e.g., "love", "future", "memory")
+    /// - `unlock_delay`  — Seconds from now until the capsule can be opened
     ///
     /// # Returns
-    /// ID kapsul yang baru dibuat
+    /// The ID of the newly created capsule
     pub fn create_capsule(
         env: Env,
         creator: Address,
@@ -115,10 +115,10 @@ impl TimeCapsuleContract {
         creator.require_auth();
 
         if unlock_delay == 0 {
-            panic!("Unlock delay harus lebih dari 0 detik");
+            panic!("Unlock delay must be greater than 0 seconds");
         }
 
-        // Generate ID baru
+        // Generate new ID
         let mut count: u64 = env.storage().instance()
             .get(&DataKey::CapsuleCount).unwrap_or(0);
         count += 1;
@@ -138,7 +138,7 @@ impl TimeCapsuleContract {
             opened_at: 0,
         };
 
-        // Simpan ke storage
+        // Save to storage
         let mut capsules: Vec<TimeCapsule> = env.storage().instance()
             .get(&DataKey::Capsules).unwrap_or(Vec::new(&env));
         capsules.push_back(capsule);
@@ -146,19 +146,13 @@ impl TimeCapsuleContract {
         env.storage().instance().set(&DataKey::Capsules, &capsules);
         env.storage().instance().set(&DataKey::CapsuleCount, &count);
 
-        // Publish event
-        env.events().publish(
-            (symbol_short!("capsule"), symbol_short!("created")),
-            count,
-        );
-
         count
     }
 
     // ====================== READ =============================================
 
-    /// Mendapatkan semua kapsul (pesan disembunyikan jika masih locked).
-    /// Ini adalah fungsi utama untuk menampilkan daftar kapsul.
+    /// Get all capsules (messages are hidden if still locked).
+    /// This is the main function to display the capsule list.
     pub fn get_capsules(env: Env) -> Vec<CapsulePreview> {
         let capsules: Vec<TimeCapsule> = env.storage().instance()
             .get(&DataKey::Capsules).unwrap_or(Vec::new(&env));
@@ -174,8 +168,8 @@ impl TimeCapsuleContract {
         previews
     }
 
-    /// Mendapatkan detail satu kapsul berdasarkan ID.
-    /// Pesan hanya ditampilkan jika kapsul sudah dibuka atau sudah waktunya.
+    /// Get details of a single capsule by ID.
+    /// The message is only shown if the capsule has been opened.
     pub fn get_capsule(env: Env, capsule_id: u64) -> CapsulePreview {
         let capsules: Vec<TimeCapsule> = env.storage().instance()
             .get(&DataKey::Capsules).unwrap_or(Vec::new(&env));
@@ -188,10 +182,10 @@ impl TimeCapsuleContract {
             }
         }
 
-        panic!("Kapsul tidak ditemukan");
+        panic!("Capsule not found");
     }
 
-    /// Mendapatkan kapsul-kapsul milik user tertentu
+    /// Get all capsules created by a specific user
     pub fn get_my_capsules(env: Env, user: Address) -> Vec<CapsulePreview> {
         let capsules: Vec<TimeCapsule> = env.storage().instance()
             .get(&DataKey::Capsules).unwrap_or(Vec::new(&env));
@@ -208,7 +202,7 @@ impl TimeCapsuleContract {
         result
     }
 
-    /// Cek status kapsul — apakah sudah bisa dibuka?
+    /// Check the status of a capsule — is it ready to be opened?
     pub fn check_status(env: Env, capsule_id: u64) -> CapsuleStatus {
         let capsules: Vec<TimeCapsule> = env.storage().instance()
             .get(&DataKey::Capsules).unwrap_or(Vec::new(&env));
@@ -221,16 +215,16 @@ impl TimeCapsuleContract {
             }
         }
 
-        panic!("Kapsul tidak ditemukan");
+        panic!("Capsule not found");
     }
 
     // ====================== UPDATE (OPEN) ====================================
 
-    /// Membuka kapsul waktu — hanya bisa jika sudah melewati waktu unlock.
-    /// Siapapun bisa membuka kapsul yang sudah waktunya.
+    /// Open a time capsule — only works if the unlock time has passed.
+    /// Anyone can open a capsule that is ready.
     ///
     /// # Returns
-    /// Pesan rahasia yang tersimpan di dalam kapsul
+    /// The secret message stored inside the capsule
     pub fn open_capsule(env: Env, opener: Address, capsule_id: u64) -> String {
         opener.require_auth();
 
@@ -241,45 +235,39 @@ impl TimeCapsuleContract {
         for i in 0..capsules.len() {
             let mut capsule = capsules.get(i).unwrap();
             if capsule.id == capsule_id {
-                // Validasi
+                // Validation
                 if capsule.is_opened {
-                    panic!("Kapsul ini sudah pernah dibuka");
+                    panic!("This capsule has already been opened");
                 }
                 if now < capsule.unlock_at {
-                    panic!("Kapsul masih terkunci! Belum waktunya dibuka");
+                    panic!("Capsule is still locked! It is not time to open yet");
                 }
 
-                // Buka kapsul
+                // Open the capsule
                 let revealed_message = capsule.message.clone();
                 capsule.is_opened = true;
                 capsule.opened_at = now;
 
-                // Update di storage
+                // Update in storage
                 capsules.remove(i);
                 capsules.insert(i, capsule);
                 env.storage().instance().set(&DataKey::Capsules, &capsules);
 
-                // Update statistik
+                // Update statistics
                 let total_opened: u64 = env.storage().instance()
                     .get(&DataKey::TotalOpened).unwrap_or(0) + 1;
                 env.storage().instance().set(&DataKey::TotalOpened, &total_opened);
-
-                // Publish event
-                env.events().publish(
-                    (symbol_short!("capsule"), symbol_short!("opened")),
-                    capsule_id,
-                );
 
                 return revealed_message;
             }
         }
 
-        panic!("Kapsul tidak ditemukan");
+        panic!("Capsule not found");
     }
 
     // ====================== DELETE ===========================================
 
-    /// Menghapus kapsul — hanya bisa oleh pembuat, dan hanya jika belum dibuka.
+    /// Delete a capsule — only the creator can delete, and only if not yet opened.
     pub fn delete_capsule(env: Env, creator: Address, capsule_id: u64) -> String {
         creator.require_auth();
 
@@ -289,35 +277,29 @@ impl TimeCapsuleContract {
         for i in 0..capsules.len() {
             let capsule = capsules.get(i).unwrap();
             if capsule.id == capsule_id {
-                // Validasi kepemilikan
+                // Verify ownership
                 if capsule.creator != creator {
-                    panic!("Hanya pembuat yang bisa menghapus kapsul ini");
+                    panic!("Only the creator can delete this capsule");
                 }
-                // Tidak bisa hapus kapsul yang sudah dibuka
+                // Cannot delete an opened capsule
                 if capsule.is_opened {
-                    panic!("Tidak bisa menghapus kapsul yang sudah dibuka");
+                    panic!("Cannot delete a capsule that has already been opened");
                 }
 
-                // Hapus dari storage
+                // Remove from storage
                 capsules.remove(i);
                 env.storage().instance().set(&DataKey::Capsules, &capsules);
 
-                // Publish event
-                env.events().publish(
-                    (symbol_short!("capsule"), symbol_short!("deleted")),
-                    capsule_id,
-                );
-
-                return String::from_str(&env, "Kapsul berhasil dihapus");
+                return String::from_str(&env, "Capsule deleted successfully");
             }
         }
 
-        panic!("Kapsul tidak ditemukan");
+        panic!("Capsule not found");
     }
 
     // ====================== STATISTICS =======================================
 
-    /// Mendapatkan statistik keseluruhan platform
+    /// Get platform-wide statistics
     pub fn get_stats(env: Env) -> Stats {
         let capsules: Vec<TimeCapsule> = env.storage().instance()
             .get(&DataKey::Capsules).unwrap_or(Vec::new(&env));
@@ -349,18 +331,18 @@ impl TimeCapsuleContract {
 
     // ====================== HELPER (INTERNAL) ================================
 
-    /// Konversi TimeCapsule ke CapsulePreview (sembunyikan pesan jika locked)
+    /// Convert a TimeCapsule to CapsulePreview (hides message if locked)
     fn to_preview(env: &Env, capsule: &TimeCapsule, now: u64) -> CapsulePreview {
         let status = Self::get_status(capsule, now);
 
-        // Pesan hanya terlihat jika sudah dibuka (Opened)
+        // Message is only visible if the capsule has been opened
         let visible_message = if capsule.is_opened {
             capsule.message.clone()
         } else if now >= capsule.unlock_at {
-            // Ready tapi belum dibuka — beri hint
-            String::from_str(env, "[READY - Buka untuk membaca pesan!]")
+            // Ready but not yet opened — show hint
+            String::from_str(env, "[READY - Open to read the message!]")
         } else {
-            String::from_str(env, "[LOCKED - Belum waktunya dibuka]")
+            String::from_str(env, "[LOCKED - Not yet time to open]")
         };
 
         CapsulePreview {
@@ -378,7 +360,7 @@ impl TimeCapsuleContract {
         }
     }
 
-    /// Tentukan status kapsul berdasarkan waktu sekarang
+    /// Determine capsule status based on current time
     fn get_status(capsule: &TimeCapsule, now: u64) -> CapsuleStatus {
         if capsule.is_opened {
             CapsuleStatus::Opened
